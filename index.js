@@ -1,5 +1,20 @@
 const sample = process.argv[2].split(':');
 
+const notes = {
+  'c':  0,
+  'c+': 1, 'd-':  1,
+  'd':  2,
+  'd+': 3, 'e-':  3,
+  'e':  4,
+  'f':  5,
+  'f+': 6, 'g-':  6,
+  'g':  7,
+  'g+': 8, 'a-':  8,
+  'a':  9,
+  'a+': 10, 'b-': 10,
+  'b': 11
+}
+
 function main(){
   const lyrics = Array.from(sample[0]);
   const frames = sample[1].replace(/,/, "");
@@ -8,6 +23,7 @@ function main(){
 
   for(let s of song.track){
     s.frame = calc_frame(calc_ms(s.length, song.tempo));
+    s.key = note_to_midi(s.key, s.octave) + 7;
   }
 
   console.log(song);
@@ -103,6 +119,10 @@ function parse(frames, lyrics){
     tempo: parseInt(tempo),
     track: results
   };
+}
+
+function note_to_midi(note, octave){
+  return note === null ? null :  notes[note] + (octave + 1) * 12;
 }
 
 function calc_ms(score_length, bpm = 120){
