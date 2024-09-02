@@ -23,7 +23,7 @@ function main(){
 
   for(let s of song.track){
     s.frame = calc_frame(calc_ms(s.length, song.tempo));
-    s.key = note_to_midi(s.key, s.octave) + 7;
+    s.key = note_to_midi(s.key, s.octave);
   }
 
   console.log(song);
