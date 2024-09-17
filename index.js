@@ -15,42 +15,124 @@ const notes = {
   'b': 11
 }
 
-const blank_note = { key: null, lyric: '', octave: null, length: 1 };
-
 class VML{
   constructor(frame_rate = 93.75){
     this.frame_rate = frame_rate;
   }
 
-  parse(text){
+  parse_line(text, octave = 4){
     const sample = text.split(':');
 
     const lyrics = Array.from(sample[0]);
-    const frames = sample[1].replace(/,/, "");
+    const frames = sample[1].replace(/,/g, "");
 
-    return this._parse(frames, lyrics);
+    return this._parse(frames, lyrics, octave);
+  }
+
+  parse(text){
+    const result = [];
+
+    let one = true;
+    let tempo = 120;
+    let octave = 4;
+
+    let split_text = text.replace(/\n/g, '').split(';').filter(Boolean);
+
+    let counter = 0;
+    for(let l of split_text){
+      let line;
+      try{
+        line = this.parse_line(l, octave);
+        console.log(l, octave);
+      }catch(e){
+        throw `Error in: LINE ${counter}, ${l}`;
+      }
+
+      if(one){
+        tempo = line.tempo;
+        one = false;
+      }
+
+      octave = line.last_octave;
+      result.push(line.track);
+      counter++;
+    }
+
+    return {
+      tempo,
+      tracks: result
+    };
   }
 
   parse_voicevox(text, key_range_fix = 0){
-    const song = this.parse(text);
-
-    for(let s of song.track){
-      s.length = this.calc_frame(this.calc_ms(s.length, song.tempo));
-      s.key = this.note_to_midi(s.key, s.octave, key_range_fix);
+    let song;
+    try{
+      song = this.parse(text);
+    }catch(e){
+      throw e;
     }
 
-    song.track.unshift(blank_note);
+    // 固定で1小節
+    song.tracks[0].unshift({ key: null, lyric: "", octave: null, length: "1" });
+
+    let tracks = [];
+    let time = 0;
+    let ms_time = 0;
+
+    for(let t of song.tracks){
+      for(let s of t){
+        let ms = this.calc_ms(s.length, song.tempo);
+        let frame_length = this.calc_frame(ms);
+        if(s.key !== null){
+          tracks.push({
+            key: this.note_to_midi(s.key, s.octave, key_range_fix),
+            lyric: s.lyric,
+            frame_length,
+            pos: time,
+            ms_pos: ms_time,
+            ms
+          });
+        }
+        time += frame_length;
+        ms_time += ms;
+      }
+    }
+
+    let result = [];
+    let current_arr = {
+      distance: this.calc_frame(this.calc_ms('1', song.tempo)),
+      notes: []
+    };
+
+    for(let i = 0; i < tracks.length; i++){
+      let next = i + 1;
+      let current = tracks[i];
+
+      current_arr.notes.push(current);
+
+      if((next < tracks.length) && (tracks[next].pos !== (current.pos + current.frame_length))){
+        result.push(current_arr);
+        current_arr = {
+          distance: tracks[next].pos - (current.pos + current.frame_length),
+          notes: []
+        };
+      }
+    }
+
+    result.push(current_arr);
+
+    song.tracks = result;
 
     return song;
   }
 
-  _parse(frames, lyrics){
+  _parse(frames, lyrics, init_octave = 4){
     const frame_arr = Array.from(frames);
 
     const results = [];
 
     // C4, o4
-    let octave = 4;
+    let octave = init_octave;
     let is_wait_octave = false;
     let is_wait_tempo= false;
     let current = null;
@@ -133,11 +215,13 @@ class VML{
 
     return {
       tempo: parseInt(tempo),
-      track: results
+      track: results,
+      last_octave: octave
     };
   }
 
   note_to_midi(note, octave, key_range_fix = 0){
+    if(note == "e+") throw "e+";
     return note === null ? null :  (notes[note] + (octave + 1) * 12) + key_range_fix;
   }
 
