@@ -43,7 +43,6 @@ class VML{
       let line;
       try{
         line = this.parse_line(l, octave);
-        console.log(l, octave);
       }catch(e){
         throw `Error in: LINE ${counter}, ${l}`;
       }
