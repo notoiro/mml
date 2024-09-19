@@ -1,4 +1,4 @@
-const VML = require("./index.js");
+const { VML } = require("./index.js");
 const { default:axios } = require('axios');
 const { OfflineAudioContext } = require('node-web-audio-api');
 const toWav = require('audiobuffer-to-wav');

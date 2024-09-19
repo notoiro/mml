@@ -15,6 +15,19 @@ const notes = {
   'b': 11
 }
 
+class VMLError extends Error{
+  constructor(e){
+    super(e);
+    this.name = new.target.name;
+
+    if (Error.captureStackTrace) {
+      Error.captureStackTrace(this, this.constructor);
+    }
+
+    Object.setPrototypeOf(this, new.target.prototype);
+  }
+}
+
 class VML{
   constructor(frame_rate = 93.75){
     this.frame_rate = frame_rate;
@@ -44,7 +57,7 @@ class VML{
       try{
         line = this.parse_line(l, octave);
       }catch(e){
-        throw `Error in: LINE ${counter}, ${l}`;
+        throw VMLError(`Error in: LINE ${counter}, ${l}`);
       }
 
       if(one){
@@ -252,5 +265,6 @@ class VML{
   }
 }
 
-module.exports = VML;
+exports.VML = VML;
+exports.VMLError = VMLError;
 
