@@ -15,6 +15,12 @@ const notes = {
   'b': 11
 }
 
+const split_mora = (text) => {
+  let re = /[ウクスツヌフムユルグズヅブプうくすつぬふむゆるぐずづぶぷ][ァヮィェォぁゎぃぇぉ]|[キシチニヒミリギジヂビピテデきしちにひみりぎじぢびぴてで][ャュェョゃゅぇょ]|[テデてで][ィぃ]|[ァ-ヴーぁ-ゔー]/g;
+  text = text.match(re);//match関数で抽出することで分かち書きと同一の結果を得る
+  return text;
+}
+
 class VMLError extends Error{
   constructor(e){
     super(e);
@@ -36,7 +42,7 @@ class VML{
   parse_line(text, octave = 4){
     const sample = text.split(':');
 
-    const lyrics = Array.from(sample[0]);
+    const lyrics = split_mora(sample[0]);
     const frames = sample[1].replace(/,/g, "");
 
     return this._parse(frames, lyrics, octave);
@@ -84,8 +90,8 @@ class VML{
       throw e;
     }
 
-    // 固定で1小節
-    song.tracks[0].unshift({ key: null, lyric: "", octave: null, length: "1" });
+    // 固定で4分
+    song.tracks[0].unshift({ key: null, lyric: "", octave: null, length: "4" });
 
     let tracks = [];
     let time = 0;
@@ -112,7 +118,7 @@ class VML{
 
     let result = [];
     let current_arr = {
-      distance: this.calc_frame(this.calc_ms('1', song.tempo)),
+      distance: this.calc_frame(this.calc_ms('4', song.tempo)),
       notes: []
     };
 

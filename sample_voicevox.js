@@ -57,6 +57,7 @@ async function main(){
   let song;
   try{
     song = vml.parse_voicevox(process.argv[2], 0);
+    console.log(JSON.stringify(song, null, "  "));
   }catch(e){
     console.log(e);
     process.exit(1);
