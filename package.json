@@ -1,18 +1,15 @@
 {
-  "name": "vml",
-  "version": "1.0.0",
+  "name": "mml",
+  "version": "0.0.1",
   "description": "",
   "main": "index.js",
   "repository": {
     "type": "git",
-    "url": "https://github.com/notoiro/vml.git"
+    "url": "https://github.com/notoiro/mml.git"
   },
   "keywords": [],
   "author": "notoiro",
   "license": "MIT",
   "devDependencies": {
-    "audiobuffer-to-wav": "^1.0.0",
-    "axios": "^1.7.7",
-    "node-web-audio-api": "^0.21.1"
   }
 }

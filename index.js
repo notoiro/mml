@@ -15,13 +15,7 @@ const notes = {
   'b': 11
 }
 
-const split_mora = (text) => {
-  let re = /[ウクスツヌフムユルグズヅブプうくすつぬふむゆるぐずづぶぷ][ァヮィェォぁゎぃぇぉ]|[キシチニヒミリギジヂビピテデきしちにひみりぎじぢびぴてで][ャュェョゃゅぇょ]|[テデてで][ィぃ]|[ァ-ヴーぁ-ゔー]/g;
-  text = text.match(re);//match関数で抽出することで分かち書きと同一の結果を得る
-  return text;
-}
-
-class VMLError extends Error{
+class MMLError extends Error{
   constructor(e){
     super(e);
     this.name = new.target.name;
@@ -34,18 +28,14 @@ class VMLError extends Error{
   }
 }
 
-class VML{
-  constructor(frame_rate = 93.75){
-    this.frame_rate = frame_rate;
+class MML{
+  constructor(ppq){
+    this.ppq = ppq;
   }
 
   parse_line(text, octave = 4){
-    const sample = text.split(':');
-
-    const lyrics = split_mora(sample[0]);
-    const frames = sample[1].replace(/,/g, "");
-
-    return this._parse(frames, lyrics, octave);
+    const frames = text.replace(/,/g, "");
+    return this._parse(frames, octave);
   }
 
   parse(text){
@@ -63,7 +53,7 @@ class VML{
       try{
         line = this.parse_line(l, octave);
       }catch(e){
-        throw VMLError(`Error in: LINE ${counter}, ${l}`);
+        throw new MMLError(`Error in: LINE ${counter}, ${l}`);
       }
 
       if(one){
@@ -82,7 +72,7 @@ class VML{
     };
   }
 
-  parse_voicevox(text, key_range_fix = 0){
+  parse_midi(text){
     let song;
     try{
       song = this.parse(text);
@@ -90,61 +80,37 @@ class VML{
       throw e;
     }
 
-    // 固定で4分
-    song.tracks[0].unshift({ key: null, lyric: "", octave: null, length: "4" });
-
-    let tracks = [];
-    let time = 0;
-    let ms_time = 0;
+    let notes = [];
+    let rest = 0;
 
     for(let t of song.tracks){
       for(let s of t){
-        let ms = this.calc_ms(s.length, song.tempo);
-        let frame_length = this.calc_frame(ms);
-        if(s.key !== null){
-          tracks.push({
-            key: this.note_to_midi(s.key, s.octave, key_range_fix),
-            lyric: s.lyric,
-            frame_length,
-            pos: time,
-            ms_pos: ms_time,
-            ms
+        if(s.keys === null){
+          rest += this.calc_tick(s.length, song.tempo);
+        }else{
+          let pitchs = [];
+          for(let i = 0; i < s.keys.length; i++){
+            pitchs.push(this.note_to_midi(s.keys[i], s.octaves[i]));
+          }
+
+          let wait = rest === 0 ? 0 : `T${rest}`;
+          notes.push({
+            pitch: pitchs,
+            duration: `T${this.calc_tick(s.length, song.tempo)}`,
+            wait
           });
+
+          rest = 0;
         }
-        time += frame_length;
-        ms_time += ms;
       }
     }
 
-    let result = [];
-    let current_arr = {
-      distance: this.calc_frame(this.calc_ms('4', song.tempo)),
-      notes: []
-    };
-
-    for(let i = 0; i < tracks.length; i++){
-      let next = i + 1;
-      let current = tracks[i];
-
-      current_arr.notes.push(current);
-
-      if((next < tracks.length) && (tracks[next].pos !== (current.pos + current.frame_length))){
-        result.push(current_arr);
-        current_arr = {
-          distance: tracks[next].pos - (current.pos + current.frame_length),
-          notes: []
-        };
-      }
-    }
-
-    result.push(current_arr);
-
-    song.tracks = result;
+    song.tracks = notes;
 
     return song;
   }
 
-  _parse(frames, lyrics, init_octave = 4){
+  _parse(frames,init_octave = 4){
     const frame_arr = Array.from(frames);
 
     const results = [];
@@ -153,8 +119,10 @@ class VML{
     let octave = init_octave;
     let is_wait_octave = false;
     let is_wait_tempo= false;
+    let is_prev_not_key = true;
     let current = null;
     let tempo = "120";
+    let last = null;
 
     for(let _f of frame_arr){
       let f = _f.toLowerCase();
@@ -174,23 +142,27 @@ class VML{
             continue;
           }
 
-          results.push(copy(current));
-          current = null;
+          if(is_prev_not_key){
+            is_prev_not_key = false;
+            results.push(copy(current));
+            current = null;
 
-          if(f === 'r'){
-            current = {
-              key: null,
-              lyric: "",
-              octave: null,
-              length: ""
-            };
-          }else{
-            current = {
-              key: f,
-              lyric: lyrics.shift(),
-              octave: octave,
-              length: ""
+            if(f === 'r'){
+              current = {
+                keys: null,
+                octaves: null,
+                length: ""
+              };
+            }else{
+              current = {
+                keys: [f],
+                octaves: [octave],
+                length: ""
+              }
             }
+          }else{
+            current.keys.push(f);
+            current.octaves.push(octave);
           }
 
           break;
@@ -202,6 +174,7 @@ class VML{
           break;
         case f === '.':
           current.length += '.';
+          is_prev_not_key = true;
           break;
         case f === '^':
           current.length += '^';
@@ -218,12 +191,15 @@ class VML{
           }
 
           current.length += f;
+          is_prev_not_key = true;
           break;
         case /[\+#]/.test(f):
-          current.key += "+";
+          last = current.keys.pop() + "+";
+          current.keys.push(last);
           break;
         case f === '-':
-          current.key += "-";
+          last = current.keys.pop() + "-";
+          current.keys.push(last);
           break;
       }
     }
@@ -238,9 +214,9 @@ class VML{
     };
   }
 
-  note_to_midi(note, octave, key_range_fix = 0){
-    if(note == "e+") throw "e+";
-    return note === null ? null :  (notes[note] + (octave + 1) * 12) + key_range_fix;
+  note_to_midi(note, octave){
+    if(note == "e+") throw "e#";
+    return note === null ? null :  (notes[note] + (octave + 1) * 12);
   }
 
   calc_ms(score_length, bpm = 120){
@@ -266,11 +242,12 @@ class VML{
     return result;
   }
 
-  calc_frame(ms){
-    return Math.round(ms * this.frame_rate /1000);
+  calc_tick(length, bpm){
+    const tick_length = 60/bpm/this.ppq*1000;
+    return this.calc_ms(length, bpm)/tick_length;
   }
 }
 
-exports.VML = VML;
-exports.VMLError = VMLError;
+exports.MML = MML;
+exports.MMLError = MMLError;
 
