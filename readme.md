@@ -1,12 +1,12 @@
-# VML
+# MML
 パーサー。
 
 ## sample
 ```js
 function main(){
-  const vml = new VML();
+  const mml = new MML();
 
-  console.log(vml.parse_voicevox(process.argv[2], +7));
+  console.log(mml.parse_midi(process.argv[2]));
 }
 
 main();
